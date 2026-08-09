@@ -6,6 +6,7 @@ import { env } from "@/lib/env";
 const redis = new Redis({
   url: env.UPSTASH_REDIS_REST_URL,
   token: env.UPSTASH_REDIS_REST_TOKEN,
+  responseEncoding: false,
 });
 
 // Auth endpoints only, per the security requirements: 5 attempts per 60s per
