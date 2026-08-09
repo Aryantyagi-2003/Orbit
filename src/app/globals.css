@@ -2,26 +2,62 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* Ledger / registry palette — aged-paper neutrals + a single oxblood
+       accent. Text/UI pairs checked for WCAG contrast; the chart-* and
+       status-* tokens below are the dataviz skill's validated default
+       categorical + status sets, re-validated against this surface
+       (see README for the validator run). */
+    --background: 40 43% 93%;
+    --foreground: 32 21% 12%;
+    --card: 42 50% 96%;
+    --card-foreground: 32 21% 12%;
+    --popover: 42 50% 96%;
+    --popover-foreground: 32 21% 12%;
+    --primary: 0 45% 33%;
+    --primary-foreground: 40 43% 93%;
+    --secondary: 42 42% 89%;
+    --secondary-foreground: 32 21% 12%;
+    --muted: 42 42% 89%;
+    --muted-foreground: 38 12% 38%;
+    --accent: 43 38% 84%;
+    --accent-foreground: 32 21% 12%;
+    --destructive: 3 71% 41%;
+    --destructive-foreground: 40 43% 93%;
+    --border: 41 31% 81%;
+    --input: 41 31% 81%;
+    --ring: 0 45% 33%;
+    --radius: 0.25rem;
+
+    --chart-1: #2a78d6;
+    --chart-2: #eb6834;
+    --chart-3: #1baf7a;
+    --chart-4: #eda100;
+    --chart-5: #e87ba4;
+    --chart-6: #008300;
+    --chart-7: #4a3aa7;
+    --chart-8: #e34948;
+
+    --status-good: #0ca30c;
+    --status-warning: #fab219;
+    --status-serious: #ec835a;
+    --status-critical: #d03b3b;
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
   }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-}
-
 @layer utilities {
-  .text-balance {
-    text-wrap: balance;
+  .ledger-row {
+    @apply odd:bg-card even:bg-background/60;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
   }
 }
