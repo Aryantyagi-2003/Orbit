@@ -7,7 +7,7 @@ const resend = new Resend(env.RESEND_API_KEY);
 export async function sendVerificationEmail(to: string, token: string) {
   const url = `${env.NEXT_PUBLIC_APP_URL}/verify-email?token=${encodeURIComponent(token)}`;
 
-  await resend.emails.send({
+  const { data, error } = await resend.emails.send({
     from: env.EMAIL_FROM,
     to,
     subject: "Verify your Orbit account",
@@ -24,4 +24,10 @@ export async function sendVerificationEmail(to: string, token: string) {
       </div>
     `,
   });
+
+  if (error) {
+    throw new Error(`Failed to send verification email: ${error.message}`);
+  }
+
+  return data.id;
 }
