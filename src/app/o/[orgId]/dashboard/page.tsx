@@ -24,13 +24,27 @@ import {
   resolvePeriod,
   type PeriodKey,
 } from "@/lib/date-ranges";
+import {
+  AlertTriangle,
+  Banknote,
+  Gauge,
+  Layers,
+  Receipt,
+  Target,
+  Trophy,
+  Wallet,
+} from "lucide-react";
+
 import { FilterBar } from "./filter-bar";
-import { StatTile, StatTileGrid, money } from "./stat-tiles";
+import { StatTile, StatTileGrid } from "./stat-tiles";
+import { money } from "./format";
 import { DashboardCharts } from "./dashboard-charts";
 import { CompositionBar } from "./composition-bar";
 import { CategoryBreakdownTable } from "./category-breakdown-table";
 import { TopExpensesList } from "./top-expenses";
 import { ActivityFeed } from "./activity-feed";
+import { BudgetMeter } from "./budget-meter";
+import { BiggestMover } from "./biggest-mover";
 
 function Section({
   title,
@@ -40,7 +54,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-sm border border-border bg-card p-4">
+    <div className="rounded-sm border border-border bg-card p-4 shadow-[0_1px_2px_rgba(38,32,25,0.04)] transition-shadow hover:shadow-[0_4px_16px_rgba(38,32,25,0.08)]">
       <h2 className="mb-4 font-medium text-foreground">{title}</h2>
       {children}
     </div>
@@ -102,14 +116,15 @@ export default async function DashboardPage({
         </div>
 
         <StatTileGrid>
-          <StatTile label="My spend" value={money(myStats.total)} />
-          <StatTile label="My expenses" value={String(myStats.count)} />
+          <StatTile label="My spend" value={money(myStats.total)} icon={<Banknote className="h-3.5 w-3.5 text-muted-foreground/60" />} />
+          <StatTile label="My expenses" value={String(myStats.count)} icon={<Layers className="h-3.5 w-3.5 text-muted-foreground/60" />} />
           <StatTile
             label="Org budget remaining"
             value={money(
               budgetVsActual.reduce((sum, b) => sum + Number(b.amount), 0) -
                 budgetVsActual.reduce((sum, b) => sum + b.actual, 0),
             )}
+            icon={<Wallet className="h-3.5 w-3.5 text-muted-foreground/60" />}
           />
         </StatTileGrid>
 
@@ -144,6 +159,7 @@ export default async function DashboardPage({
     stats,
     prevTotal,
     byCategory,
+    prevByCategory,
     overTime,
     budgets,
     monthlyTrend,
@@ -174,6 +190,13 @@ export default async function DashboardPage({
       resolved.to,
       categoryId,
     ),
+    getSpendByCategory(
+      user.id,
+      params.orgId,
+      resolved.prevFrom,
+      resolved.prevTo,
+      categoryId,
+    ),
     getSpendOverTime(
       user.id,
       params.orgId,
@@ -202,6 +225,15 @@ export default async function DashboardPage({
     getCategoryBreakdown(user.id, params.orgId, currentPeriodKey(), categoryId),
     countCategoriesOverBudget(user.id, params.orgId, currentPeriodKey()),
   ]);
+
+  const prevByCategoryMap = new Map(
+    prevByCategory.map((c) => [c.category.id, c.total]),
+  );
+  const movers = byCategory.map((c) => ({
+    categoryName: c.category.name,
+    current: c.total,
+    previous: prevByCategoryMap.get(c.category.id) ?? 0,
+  }));
 
   const totalBudgeted = budgets.reduce((sum, b) => sum + Number(b.amount), 0);
   const totalActual = budgets.reduce((sum, b) => sum + b.actual, 0);
@@ -245,36 +277,44 @@ export default async function DashboardPage({
           label="Total spend"
           value={money(stats.total)}
           deltaPercent={momDelta}
+          icon={<Banknote className="h-3.5 w-3.5 text-muted-foreground/60" />}
+          sparkline={overTime.map((d) => d.total)}
         />
         <StatTile
           label="Total budgeted"
           value={money(totalBudgeted)}
           sublabel={currentPeriodKey()}
+          icon={<Target className="h-3.5 w-3.5 text-muted-foreground/60" />}
         />
         <StatTile
           label="Remaining"
           value={money(remaining)}
           tone={remaining < 0 ? "critical" : "good"}
+          icon={<Wallet className="h-3.5 w-3.5 text-muted-foreground/60" />}
         />
         <StatTile
           label="Categories over budget"
           value={String(overBudgetCount)}
           tone={overBudgetCount > 0 ? "critical" : "good"}
+          icon={<AlertTriangle className="h-3.5 w-3.5 text-muted-foreground/60" />}
         />
         <StatTile
           label="Avg expense"
           value={money(stats.average, { maxFractionDigits: 2 })}
+          icon={<Receipt className="h-3.5 w-3.5 text-muted-foreground/60" />}
         />
-        <StatTile label="Expense count" value={String(stats.count)} />
+        <StatTile label="Expense count" value={String(stats.count)} icon={<Layers className="h-3.5 w-3.5 text-muted-foreground/60" />} />
         <StatTile
           label="Largest expense"
           value={stats.largest ? money(stats.largest.amount) : "—"}
           sublabel={stats.largest?.categoryName}
+          icon={<Trophy className="h-3.5 w-3.5 text-muted-foreground/60" />}
         />
         {projectedSpend !== null && (
           <StatTile
             label="Projected month-end"
             value={money(projectedSpend)}
+            icon={<Gauge className="h-3.5 w-3.5 text-muted-foreground/60" />}
             tone={
               totalBudgeted > 0 && projectedSpend > totalBudgeted
                 ? "critical"
@@ -284,6 +324,17 @@ export default async function DashboardPage({
           />
         )}
       </StatTileGrid>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Section title="Overall budget usage">
+          <BudgetMeter actual={totalActual} budgeted={totalBudgeted} />
+        </Section>
+        <div className="lg:col-span-2">
+          <Section title="Biggest movers vs. last period">
+            <BiggestMover movers={movers} />
+          </Section>
+        </div>
+      </div>
 
       <Section title="Spend composition">
         <CompositionBar
