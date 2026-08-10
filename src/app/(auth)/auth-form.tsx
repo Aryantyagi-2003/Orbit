@@ -44,7 +44,7 @@ function FieldError({ messages }: { messages?: string[] }) {
   );
 }
 
-export function AuthForm() {
+export function AuthForm({ callbackUrl }: { callbackUrl?: string }) {
   const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
   const [signInState, signInFormAction] = useFormState(
     signInAction,
@@ -98,6 +98,7 @@ export function AuthForm() {
       </div>
 
       <form action={signInWithGoogleAction}>
+        {callbackUrl && <input type="hidden" name="callbackUrl" value={callbackUrl} />}
         <GoogleSignInButton />
       </form>
 
@@ -111,6 +112,7 @@ export function AuthForm() {
 
       {mode === "sign-in" ? (
         <form action={signInFormAction} className="space-y-4">
+          {callbackUrl && <input type="hidden" name="callbackUrl" value={callbackUrl} />}
           <div>
             <Label htmlFor="signin-email">Email</Label>
             <Input

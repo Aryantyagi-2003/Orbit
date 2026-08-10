@@ -131,6 +131,11 @@ function InviteForm({ orgId }: { orgId: string }) {
           {state.message}
         </p>
       )}
+      {state.status === "success" && state.message && (
+        <p className="w-full text-sm text-status-good" role="status">
+          {state.message}
+        </p>
+      )}
     </form>
   );
 }

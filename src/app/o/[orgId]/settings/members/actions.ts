@@ -15,6 +15,7 @@ import {
   NotFoundError,
 } from "@/lib/data/orgs";
 import { inviteSchema } from "@/lib/validations/org";
+import { sendInviteEmail } from "@/lib/email";
 
 export type MemberFormState = {
   status: "idle" | "error" | "success";
@@ -57,13 +58,23 @@ export async function inviteMemberAction(
   }
 
   try {
-    await createInvite(user.id, orgId, parsed.data);
+    const invite = await createInvite(user.id, orgId, parsed.data);
+    await sendInviteEmail(
+      invite.email,
+      invite.token,
+      invite.org.name,
+      invite.invitedBy.name ?? invite.invitedBy.email,
+      invite.role,
+    );
   } catch (error) {
     return mapError(error);
   }
 
   revalidatePath(`/o/${orgId}/settings/members`);
-  return { status: "success" };
+  return {
+    status: "success",
+    message: `Invite sent to ${parsed.data.email}.`,
+  };
 }
 
 export async function changeRoleAction(

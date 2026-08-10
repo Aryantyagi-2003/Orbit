@@ -285,6 +285,10 @@ export async function createInvite(
         expiresAt,
         acceptedAt: null,
       },
+      include: {
+        org: { select: { name: true } },
+        invitedBy: { select: { name: true, email: true } },
+      },
     });
 
     await recordAuditLog(
@@ -337,6 +341,27 @@ export async function revokeInvite(
       },
       tx,
     );
+  });
+}
+
+/** Public lookup — no membership required, since the whole point is that the caller isn't a member yet. */
+export async function getInviteByToken(token: string) {
+  const invite = await prisma.invite.findUnique({
+    where: { token },
+    include: { org: { select: { id: true, name: true } } },
+  });
+  if (!invite || invite.acceptedAt || invite.expiresAt < new Date()) {
+    return null;
+  }
+  return invite;
+}
+
+/** Any pending invite(s) for this email — surfaced on /onboarding as an alternative to creating a new org. */
+export async function listPendingInvitesForEmail(email: string) {
+  return prisma.invite.findMany({
+    where: { email, acceptedAt: null, expiresAt: { gt: new Date() } },
+    include: { org: { select: { id: true, name: true } } },
+    orderBy: { createdAt: "desc" },
   });
 }
 

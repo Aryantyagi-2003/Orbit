@@ -80,8 +80,19 @@ export async function signUpAction(
   };
 }
 
-export async function signInWithGoogleAction() {
-  await signIn("google", { redirectTo: "/dashboard" });
+// Only ever redirect to a same-origin relative path — a callbackUrl is
+// client-supplied (a query param a user could hand-edit), so treat it as
+// untrusted input, not a trusted destination.
+function safeCallbackUrl(raw: FormDataEntryValue | null): string {
+  if (typeof raw !== "string" || !raw.startsWith("/") || raw.startsWith("//")) {
+    return "/dashboard";
+  }
+  return raw;
+}
+
+export async function signInWithGoogleAction(formData: FormData) {
+  const callbackUrl = safeCallbackUrl(formData.get("callbackUrl"));
+  await signIn("google", { redirectTo: callbackUrl });
 }
 
 export async function signOutAction() {
@@ -110,7 +121,7 @@ export async function signInAction(
     await signIn("credentials", {
       email: parsed.data.email,
       password: parsed.data.password,
-      redirectTo: "/dashboard",
+      redirectTo: safeCallbackUrl(formData.get("callbackUrl")),
     });
   } catch (error) {
     if (error instanceof AuthError) {
