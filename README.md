@@ -29,6 +29,18 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
+## Known fixes
+
+- **Email case-sensitivity duplicate accounts** (found in dev testing): emails
+  weren't normalized before being stored or looked up, so `A@x.com` and
+  `a@x.com` could create two separate `User` rows for the same person. Fixed
+  by trimming + lowercasing email at every write and lookup path (the shared
+  Zod `emailSchema`, the credentials signup/login queries, and the Google
+  provider's `profile()` mapping), plus a case-insensitive unique index on
+  `lower(email)` added via raw-SQL migration
+  (`20260810174403_user_email_case_insensitive_unique`) so the DB rejects a
+  case-variant duplicate even if a future code path forgets to normalize.
+
 ## Deploy on Vercel
 
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.

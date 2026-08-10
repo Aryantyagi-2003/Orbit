@@ -41,6 +41,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     Google({
       clientId: env.GOOGLE_CLIENT_ID,
       clientSecret: env.GOOGLE_CLIENT_SECRET,
+      // Auth.js core already lowercases profile.email before it reaches the
+      // adapter, but it doesn't trim — normalize explicitly here so the
+      // guarantee ("every stored email is trim+lowercase") holds for this
+      // provider on its own, not just as a side effect of core internals.
+      profile(profile) {
+        return {
+          id: profile.sub,
+          name: profile.name,
+          email: profile.email.trim().toLowerCase(),
+          image: profile.picture,
+        };
+      },
     }),
     Credentials({
       credentials: {
@@ -51,8 +63,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const parsed = signInSchema.safeParse(rawCredentials);
         if (!parsed.success) throw new InvalidCredentialsError();
 
+        // parsed.data.email is already trim+lowercase via emailSchema, but
+        // normalized again at the actual query — same reasoning as the
+        // signup write path: this stays correct even if the schema changes
+        // upstream of this call someday.
         const user = await prisma.user.findUnique({
-          where: { email: parsed.data.email },
+          where: { email: parsed.data.email.trim().toLowerCase() },
         });
         if (!user?.passwordHash) throw new InvalidCredentialsError();
 

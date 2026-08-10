@@ -16,9 +16,12 @@ export class EmailAlreadyRegisteredError extends Error {
 }
 
 export async function createUserWithPassword(input: SignUpInput) {
-  const existing = await prisma.user.findUnique({
-    where: { email: input.email },
-  });
+  // Normalized again here, not just at the Zod boundary (input.email is
+  // already lowercased by emailSchema) — this is the actual write path, so
+  // it stays correct even if a future caller reaches it with unparsed input.
+  const email = input.email.trim().toLowerCase();
+
+  const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) throw new EmailAlreadyRegisteredError();
 
   const passwordHash = await bcrypt.hash(input.password, 12);
@@ -26,7 +29,7 @@ export async function createUserWithPassword(input: SignUpInput) {
   const user = await prisma.user.create({
     data: {
       name: input.name,
-      email: input.email,
+      email,
       passwordHash,
     },
   });
@@ -52,7 +55,7 @@ export async function consumeVerificationToken(token: string) {
   await prisma.verificationToken.delete({ where: { token } });
 
   const user = await prisma.user.update({
-    where: { email: record.identifier },
+    where: { email: record.identifier.trim().toLowerCase() },
     data: { emailVerified: new Date() },
   });
 

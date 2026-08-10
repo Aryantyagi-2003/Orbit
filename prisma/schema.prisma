@@ -11,6 +11,12 @@ datasource db {
 model User {
   id            String    @id @default(cuid())
   name          String?
+  // Case-sensitive uniqueness from Prisma, PLUS a case-insensitive unique
+  // index on lower(email) added by a raw-SQL migration (see
+  // 20260810174403_user_email_case_insensitive_unique) — expression indexes
+  // aren't representable in schema.prisma, so it won't show up here. Don't
+  // let a future `prisma migrate dev` diff drop it: review the generated
+  // SQL before applying.
   email         String    @unique
   emailVerified DateTime?
   image         String?
