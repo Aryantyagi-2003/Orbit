@@ -1,9 +1,39 @@
 const previewRows = [
-  { date: "2026-08-04", category: "Travel", note: "Client site visit — SFO", amount: 842.15, running: 842.15 },
-  { date: "2026-08-05", category: "Software", note: "Design tooling renewal", amount: 129.0, running: 971.15 },
-  { date: "2026-08-06", category: "Meals", note: "Team offsite lunch", amount: 214.6, running: 1185.75 },
-  { date: "2026-08-06", category: "Office", note: "Monitor arms, x4", amount: 361.2, running: 1546.95 },
-  { date: "2026-08-07", category: "Travel", note: "Airport transit", amount: 58.4, running: 1605.35 },
+  {
+    date: "2026-08-04",
+    category: "Travel",
+    note: "Client site visit — SFO",
+    amount: 842.15,
+    running: 842.15,
+  },
+  {
+    date: "2026-08-05",
+    category: "Software",
+    note: "Design tooling renewal",
+    amount: 129.0,
+    running: 971.15,
+  },
+  {
+    date: "2026-08-06",
+    category: "Meals",
+    note: "Team offsite lunch",
+    amount: 214.6,
+    running: 1185.75,
+  },
+  {
+    date: "2026-08-06",
+    category: "Office",
+    note: "Monitor arms, x4",
+    amount: 361.2,
+    running: 1546.95,
+  },
+  {
+    date: "2026-08-07",
+    category: "Travel",
+    note: "Airport transit",
+    amount: 58.4,
+    running: 1605.35,
+  },
 ];
 
 const currency = new Intl.NumberFormat("en-US", {

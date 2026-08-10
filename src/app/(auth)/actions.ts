@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { AuthError } from "next-auth";
 
-import { signIn } from "@/lib/auth";
+import { signIn, signOut } from "@/lib/auth";
 import { authRateLimit } from "@/lib/rate-limit";
 import { sendVerificationEmail } from "@/lib/email";
 import {
@@ -82,6 +82,10 @@ export async function signUpAction(
 
 export async function signInWithGoogleAction() {
   await signIn("google", { redirectTo: "/dashboard" });
+}
+
+export async function signOutAction() {
+  await signOut({ redirectTo: "/login" });
 }
 
 export async function signInAction(

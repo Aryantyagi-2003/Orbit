@@ -18,8 +18,8 @@ export default async function VerifyEmailPage({
         </h1>
         <p className="text-sm text-muted-foreground">
           We sent a verification link to the email you signed up with. It can
-          take a minute to arrive — if you don&apos;t see it, check spam
-          before requesting another.
+          take a minute to arrive — if you don&apos;t see it, check spam before
+          requesting another.
         </p>
         <Button asChild variant="outline" className="w-full">
           <Link href="/login">Back to sign in</Link>
@@ -37,9 +37,8 @@ export default async function VerifyEmailPage({
           This link has expired
         </h1>
         <p className="text-sm text-muted-foreground">
-          Verification links are valid for 24 hours. Sign up again with the
-          same email to get a fresh one, or sign in if you&apos;ve already
-          verified.
+          Verification links are valid for 24 hours. Sign up again with the same
+          email to get a fresh one, or sign in if you&apos;ve already verified.
         </p>
         <Button asChild className="w-full">
           <Link href="/login">Back to sign in</Link>

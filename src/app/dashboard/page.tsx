@@ -1,23 +1,14 @@
 import { redirect } from "next/navigation";
 
-import { auth } from "@/lib/auth";
+import { requireUser } from "@/lib/session";
+import { listUserOrganizations } from "@/lib/data/orgs";
 
-export default async function DashboardPage() {
-  const session = await auth();
-  if (!session?.user) redirect("/login");
+// Landing spot after sign-in. Not a real page — routes to the user's org
+// (or onboarding, if they have none) since every real view is org-scoped.
+export default async function DashboardRedirectPage() {
+  const user = await requireUser();
+  const memberships = await listUserOrganizations(user.id);
 
-  return (
-    <div className="mx-auto max-w-2xl px-6 py-16">
-      <h1 className="font-serif text-3xl text-foreground">
-        Signed in as {session.user.email}
-      </h1>
-      <p className="mt-2 font-mono text-xs text-muted-foreground">
-        user_id {session.user.id}
-      </p>
-      <p className="mt-6 text-sm text-muted-foreground">
-        Org creation, expense/budget CRUD, the dashboard charts, member
-        settings, and the audit log land in the next layers.
-      </p>
-    </div>
-  );
+  if (memberships.length === 0) redirect("/onboarding");
+  redirect(`/o/${memberships[0].org.id}/dashboard`);
 }

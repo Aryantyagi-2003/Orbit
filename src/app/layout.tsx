@@ -39,11 +39,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={cn(
-        newsreader.variable,
-        plexSans.variable,
-        plexMono.variable,
-      )}
+      className={cn(newsreader.variable, plexSans.variable, plexMono.variable)}
     >
       <body className="font-sans antialiased">{children}</body>
     </html>

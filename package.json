@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "next lint",
     "format": "prettier --write .",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "test:e2e": "playwright test",
+    "test:tenancy": "tsx --conditions=react-server e2e/tenancy-data-layer-check.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",
