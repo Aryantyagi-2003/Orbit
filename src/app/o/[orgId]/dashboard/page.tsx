@@ -1,59 +1,299 @@
 import { requireUser } from "@/lib/session";
-import { getSpendByCategory, getSpendOverTime } from "@/lib/data/expenses";
-import { listBudgets } from "@/lib/data/budgets";
+import {
+  getExpenseStats,
+  getMonthlySpendTrend,
+  getMyExpenseStats,
+  getMyRecentExpenses,
+  getRecentExpenses,
+  getSpendByCategory,
+  getSpendByMember,
+  getSpendOverTime,
+  getSpendTotal,
+  getTopExpenses,
+} from "@/lib/data/expenses";
+import {
+  countCategoriesOverBudget,
+  getCategoryBreakdown,
+  listBudgets,
+} from "@/lib/data/budgets";
+import { getOrgForMember, listCategories } from "@/lib/data/orgs";
+import { can } from "@/lib/permissions";
+import {
+  currentPeriodKey,
+  isPeriodKey,
+  resolvePeriod,
+  type PeriodKey,
+} from "@/lib/date-ranges";
+import { FilterBar } from "./filter-bar";
+import { StatTile, StatTileGrid, money } from "./stat-tiles";
 import { DashboardCharts } from "./dashboard-charts";
+import { CompositionBar } from "./composition-bar";
+import { CategoryBreakdownTable } from "./category-breakdown-table";
+import { TopExpensesList } from "./top-expenses";
+import { ActivityFeed } from "./activity-feed";
 
-function monthRange() {
-  const now = new Date();
-  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const to = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59),
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-sm border border-border bg-card p-4">
+      <h2 className="mb-4 font-medium text-foreground">{title}</h2>
+      {children}
+    </div>
   );
-  const period = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
-  return { from, to, period };
 }
 
 export default async function DashboardPage({
   params,
+  searchParams,
 }: {
   params: { orgId: string };
+  searchParams: { period?: string; category?: string };
 }) {
   const user = await requireUser();
-  const { from, to, period } = monthRange();
+  const { role } = await getOrgForMember(user.id, params.orgId);
 
-  const [byCategory, overTime, budgets] = await Promise.all([
-    getSpendByCategory(user.id, params.orgId, from, to),
-    getSpendOverTime(user.id, params.orgId, from, to),
-    listBudgets(user.id, params.orgId, period),
+  const periodKey: PeriodKey = isPeriodKey(searchParams.period)
+    ? searchParams.period
+    : "this-month";
+  const resolved = resolvePeriod(periodKey);
+  const categoryId = searchParams.category || undefined;
+
+  const categories = await listCategories(user.id, params.orgId);
+
+  const canSeeFinance = can(role, "budget:manage");
+
+  if (!canSeeFinance) {
+    // Member view: their own numbers first, org budgets as read-only context
+    // — never a peer-spend leaderboard, which belongs to Admin/Owner only.
+    const [myStats, byCategory, budgetVsActual, myRecent] = await Promise.all([
+      getMyExpenseStats(user.id, params.orgId, resolved.from, resolved.to),
+      getSpendByCategory(
+        user.id,
+        params.orgId,
+        resolved.from,
+        resolved.to,
+        categoryId,
+      ),
+      listBudgets(user.id, params.orgId, currentPeriodKey()),
+      getMyRecentExpenses(user.id, params.orgId, 8),
+    ]);
+
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="font-serif text-3xl font-medium text-foreground">
+              Dashboard
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {resolved.label}
+            </p>
+          </div>
+          <FilterBar
+            period={periodKey}
+            categoryId={categoryId ?? null}
+            categories={categories}
+          />
+        </div>
+
+        <StatTileGrid>
+          <StatTile label="My spend" value={money(myStats.total)} />
+          <StatTile label="My expenses" value={String(myStats.count)} />
+          <StatTile
+            label="Org budget remaining"
+            value={money(
+              budgetVsActual.reduce((sum, b) => sum + Number(b.amount), 0) -
+                budgetVsActual.reduce((sum, b) => sum + b.actual, 0),
+            )}
+          />
+        </StatTileGrid>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Section title="Org spend by category">
+            <CompositionBar
+              segments={byCategory.map((c) => ({
+                categoryId: c.category.id,
+                name: c.category.name,
+                total: c.total,
+              }))}
+            />
+          </Section>
+          <Section title="My recent expenses">
+            <ActivityFeed
+              items={myRecent.map((e) => ({
+                id: e.id,
+                amount: Number(e.amount),
+                categoryName: e.category.name,
+                submittedByName: e.submittedBy.name ?? e.submittedBy.email,
+                createdAt: e.createdAt.toISOString(),
+              }))}
+            />
+          </Section>
+        </div>
+      </div>
+    );
+  }
+
+  // Owner/Admin: the full finance suite.
+  const [
+    stats,
+    prevTotal,
+    byCategory,
+    overTime,
+    budgets,
+    monthlyTrend,
+    spendByMember,
+    topExpenses,
+    recent,
+    breakdown,
+    overBudgetCount,
+  ] = await Promise.all([
+    getExpenseStats(
+      user.id,
+      params.orgId,
+      resolved.from,
+      resolved.to,
+      categoryId,
+    ),
+    getSpendTotal(
+      user.id,
+      params.orgId,
+      resolved.prevFrom,
+      resolved.prevTo,
+      categoryId,
+    ),
+    getSpendByCategory(
+      user.id,
+      params.orgId,
+      resolved.from,
+      resolved.to,
+      categoryId,
+    ),
+    getSpendOverTime(
+      user.id,
+      params.orgId,
+      resolved.from,
+      resolved.to,
+      categoryId,
+    ),
+    listBudgets(user.id, params.orgId, currentPeriodKey()),
+    getMonthlySpendTrend(user.id, params.orgId, 6, categoryId),
+    getSpendByMember(
+      user.id,
+      params.orgId,
+      resolved.from,
+      resolved.to,
+      categoryId,
+    ),
+    getTopExpenses(
+      user.id,
+      params.orgId,
+      resolved.from,
+      resolved.to,
+      8,
+      categoryId,
+    ),
+    getRecentExpenses(user.id, params.orgId, 8),
+    getCategoryBreakdown(user.id, params.orgId, currentPeriodKey(), categoryId),
+    countCategoriesOverBudget(user.id, params.orgId, currentPeriodKey()),
   ]);
 
-  const totalSpend = byCategory.reduce((sum, c) => sum + c.total, 0);
   const totalBudgeted = budgets.reduce((sum, b) => sum + Number(b.amount), 0);
+  const totalActual = budgets.reduce((sum, b) => sum + b.actual, 0);
+  const remaining = totalBudgeted - totalActual;
+
+  const momDelta =
+    prevTotal > 0 ? ((stats.total - prevTotal) / prevTotal) * 100 : null;
+
+  const daysElapsed = resolved.isCurrentMonth
+    ? Math.max(
+        1,
+        Math.ceil((Date.now() - resolved.from.getTime()) / 86_400_000),
+      )
+    : null;
+  const daysInPeriod = resolved.isCurrentMonth
+    ? Math.ceil((resolved.to.getTime() - resolved.from.getTime()) / 86_400_000)
+    : null;
+  const projectedSpend =
+    daysElapsed && daysInPeriod
+      ? (stats.total / daysElapsed) * daysInPeriod
+      : null;
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="font-serif text-3xl font-medium text-foreground">
-          Dashboard
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {new Date().toLocaleDateString("en-US", {
-            month: "long",
-            year: "numeric",
-          })}{" "}
-          to date.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatTile label="Total spend" value={totalSpend} />
-        <StatTile label="Total budgeted" value={totalBudgeted} />
-        <StatTile
-          label="Remaining"
-          value={totalBudgeted - totalSpend}
-          tone={totalBudgeted - totalSpend < 0 ? "critical" : "good"}
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="font-serif text-3xl font-medium text-foreground">
+            Dashboard
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">{resolved.label}</p>
+        </div>
+        <FilterBar
+          period={periodKey}
+          categoryId={categoryId ?? null}
+          categories={categories}
         />
       </div>
+
+      <StatTileGrid>
+        <StatTile
+          label="Total spend"
+          value={money(stats.total)}
+          deltaPercent={momDelta}
+        />
+        <StatTile
+          label="Total budgeted"
+          value={money(totalBudgeted)}
+          sublabel={currentPeriodKey()}
+        />
+        <StatTile
+          label="Remaining"
+          value={money(remaining)}
+          tone={remaining < 0 ? "critical" : "good"}
+        />
+        <StatTile
+          label="Categories over budget"
+          value={String(overBudgetCount)}
+          tone={overBudgetCount > 0 ? "critical" : "good"}
+        />
+        <StatTile
+          label="Avg expense"
+          value={money(stats.average, { maxFractionDigits: 2 })}
+        />
+        <StatTile label="Expense count" value={String(stats.count)} />
+        <StatTile
+          label="Largest expense"
+          value={stats.largest ? money(stats.largest.amount) : "—"}
+          sublabel={stats.largest?.categoryName}
+        />
+        {projectedSpend !== null && (
+          <StatTile
+            label="Projected month-end"
+            value={money(projectedSpend)}
+            tone={
+              totalBudgeted > 0 && projectedSpend > totalBudgeted
+                ? "critical"
+                : undefined
+            }
+            sublabel="at current pace"
+          />
+        )}
+      </StatTileGrid>
+
+      <Section title="Spend composition">
+        <CompositionBar
+          segments={byCategory.map((c) => ({
+            categoryId: c.category.id,
+            name: c.category.name,
+            total: c.total,
+          }))}
+        />
+      </Section>
 
       <DashboardCharts
         byCategory={byCategory.map((c) => ({
@@ -67,42 +307,42 @@ export default async function DashboardPage({
           budgeted: Number(b.amount),
           actual: b.actual,
         }))}
+        monthlyTrend={monthlyTrend}
+        spendByMember={spendByMember.map((m) => ({
+          name: m.name,
+          total: m.total,
+        }))}
       />
-    </div>
-  );
-}
 
-function StatTile({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone?: "good" | "critical";
-}) {
-  const formatted = value.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  });
-  return (
-    <div className="rounded-sm border border-border bg-card p-4">
-      <p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
-        {label}
-      </p>
-      <p
-        className={
-          "mt-1 font-serif text-3xl tabular-nums " +
-          (tone === "critical"
-            ? "text-status-critical"
-            : tone === "good"
-              ? "text-status-good"
-              : "text-foreground")
-        }
-      >
-        {formatted}
-      </p>
+      <Section title="Category breakdown">
+        <CategoryBreakdownTable rows={breakdown} />
+      </Section>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Section title="Top expenses">
+          <TopExpensesList
+            expenses={topExpenses.map((e) => ({
+              id: e.id,
+              amount: Number(e.amount),
+              date: e.date.toISOString(),
+              note: e.note,
+              categoryName: e.category.name,
+              submittedByName: e.submittedBy.name ?? e.submittedBy.email,
+            }))}
+          />
+        </Section>
+        <Section title="Recent activity">
+          <ActivityFeed
+            items={recent.map((e) => ({
+              id: e.id,
+              amount: Number(e.amount),
+              categoryName: e.category.name,
+              submittedByName: e.submittedBy.name ?? e.submittedBy.email,
+              createdAt: e.createdAt.toISOString(),
+            }))}
+          />
+        </Section>
+      </div>
     </div>
   );
 }

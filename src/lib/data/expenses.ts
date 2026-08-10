@@ -167,17 +167,25 @@ export async function deleteExpense(
   });
 }
 
+function dateWhere(from: Date, to: Date, categoryId?: string): Prisma.ExpenseWhereInput {
+  return {
+    date: { gte: from, lte: to },
+    ...(categoryId ? { categoryId } : {}),
+  };
+}
+
 export async function getSpendByCategory(
   userId: string,
   orgId: string,
   from: Date,
   to: Date,
+  categoryId?: string,
 ) {
   await requireMembership(userId, orgId);
 
   const rows = await prisma.expense.groupBy({
     by: ["categoryId"],
-    where: { orgId, date: { gte: from, lte: to } },
+    where: { orgId, ...dateWhere(from, to, categoryId) },
     _sum: { amount: true },
   });
 
@@ -201,11 +209,12 @@ export async function getSpendOverTime(
   orgId: string,
   from: Date,
   to: Date,
+  categoryId?: string,
 ) {
   await requireMembership(userId, orgId);
 
   const expenses = await prisma.expense.findMany({
-    where: { orgId, date: { gte: from, lte: to } },
+    where: { orgId, ...dateWhere(from, to, categoryId) },
     select: { date: true, amount: true },
     orderBy: { date: "asc" },
   });
@@ -219,4 +228,210 @@ export async function getSpendOverTime(
   return Array.from(byDay.entries())
     .map(([date, total]) => ({ date, total }))
     .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export type ExpenseStats = {
+  total: number;
+  count: number;
+  average: number;
+  largest: {
+    id: string;
+    amount: number;
+    categoryName: string;
+    date: string;
+    note: string | null;
+  } | null;
+};
+
+export async function getExpenseStats(
+  userId: string,
+  orgId: string,
+  from: Date,
+  to: Date,
+  categoryId?: string,
+): Promise<ExpenseStats> {
+  await requireMembership(userId, orgId);
+
+  const where = { orgId, ...dateWhere(from, to, categoryId) };
+
+  const [agg, largest] = await Promise.all([
+    prisma.expense.aggregate({
+      where,
+      _sum: { amount: true },
+      _count: true,
+      _avg: { amount: true },
+    }),
+    prisma.expense.findFirst({
+      where,
+      orderBy: { amount: "desc" },
+      include: { category: { select: { name: true } } },
+    }),
+  ]);
+
+  return {
+    total: Number(agg._sum.amount ?? 0),
+    count: agg._count,
+    average: Number(agg._avg.amount ?? 0),
+    largest: largest
+      ? {
+          id: largest.id,
+          amount: Number(largest.amount),
+          categoryName: largest.category.name,
+          date: largest.date.toISOString(),
+          note: largest.note,
+        }
+      : null,
+  };
+}
+
+/** The caller's own totals for the period — the Member dashboard's headline numbers, never a peer's. */
+export async function getMyExpenseStats(
+  userId: string,
+  orgId: string,
+  from: Date,
+  to: Date,
+): Promise<{ total: number; count: number }> {
+  await requireMembership(userId, orgId);
+
+  const agg = await prisma.expense.aggregate({
+    where: { orgId, submittedById: userId, date: { gte: from, lte: to } },
+    _sum: { amount: true },
+    _count: true,
+  });
+
+  return { total: Number(agg._sum.amount ?? 0), count: agg._count };
+}
+
+/** Total spend for a bare comparison window — used for month-over-month deltas. */
+export async function getSpendTotal(
+  userId: string,
+  orgId: string,
+  from: Date,
+  to: Date,
+  categoryId?: string,
+): Promise<number> {
+  await requireMembership(userId, orgId);
+  const agg = await prisma.expense.aggregate({
+    where: { orgId, ...dateWhere(from, to, categoryId) },
+    _sum: { amount: true },
+  });
+  return Number(agg._sum.amount ?? 0);
+}
+
+export async function getSpendByMember(
+  userId: string,
+  orgId: string,
+  from: Date,
+  to: Date,
+  categoryId?: string,
+) {
+  await requireMembership(userId, orgId);
+
+  const rows = await prisma.expense.groupBy({
+    by: ["submittedById"],
+    where: { orgId, ...dateWhere(from, to, categoryId) },
+    _sum: { amount: true },
+    _count: true,
+  });
+
+  const users = await prisma.user.findMany({
+    where: { id: { in: rows.map((r) => r.submittedById) } },
+    select: { id: true, name: true, email: true },
+  });
+  const userById = new Map(users.map((u) => [u.id, u]));
+
+  return rows
+    .map((row) => {
+      const user = userById.get(row.submittedById);
+      return {
+        userId: row.submittedById,
+        name: user?.name ?? user?.email ?? "Unknown",
+        total: Number(row._sum.amount ?? 0),
+        count: row._count,
+      };
+    })
+    .sort((a, b) => b.total - a.total);
+}
+
+/** Monthly totals for the trailing N months (inclusive of the current month) — independent of the period filter, since a trend needs its own fixed window. */
+export async function getMonthlySpendTrend(
+  userId: string,
+  orgId: string,
+  months: number,
+  categoryId?: string,
+) {
+  await requireMembership(userId, orgId);
+
+  const now = new Date();
+  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (months - 1), 1));
+
+  const expenses = await prisma.expense.findMany({
+    where: { orgId, date: { gte: from }, ...(categoryId ? { categoryId } : {}) },
+    select: { date: true, amount: true },
+  });
+
+  const byMonth = new Map<string, number>();
+  for (let i = 0; i < months; i++) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (months - 1 - i), 1));
+    byMonth.set(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`, 0);
+  }
+  for (const e of expenses) {
+    const key = `${e.date.getUTCFullYear()}-${String(e.date.getUTCMonth() + 1).padStart(2, "0")}`;
+    if (byMonth.has(key)) byMonth.set(key, (byMonth.get(key) ?? 0) + Number(e.amount));
+  }
+
+  return Array.from(byMonth.entries()).map(([month, total]) => ({ month, total }));
+}
+
+export async function getTopExpenses(
+  userId: string,
+  orgId: string,
+  from: Date,
+  to: Date,
+  limit: number,
+  categoryId?: string,
+) {
+  await requireMembership(userId, orgId);
+
+  return prisma.expense.findMany({
+    where: { orgId, ...dateWhere(from, to, categoryId) },
+    orderBy: { amount: "desc" },
+    take: limit,
+    include: {
+      category: { select: { name: true } },
+      submittedBy: { select: { name: true, email: true } },
+    },
+  });
+}
+
+/** Most recent expenses org-wide, not bound by the period filter — an activity feed reads "what just happened," not "what happened in this window." */
+export async function getRecentExpenses(userId: string, orgId: string, limit: number) {
+  await requireMembership(userId, orgId);
+
+  return prisma.expense.findMany({
+    where: { orgId },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    include: {
+      category: { select: { name: true } },
+      submittedBy: { select: { name: true, email: true } },
+    },
+  });
+}
+
+/** A Member's own recent expenses, queried directly — not filtered out of
+ * the org-wide recent list, which could cut off their older items if
+ * enough other people's expenses came in more recently. */
+export async function getMyRecentExpenses(userId: string, orgId: string, limit: number) {
+  await requireMembership(userId, orgId);
+
+  return prisma.expense.findMany({
+    where: { orgId, submittedById: userId },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    include: {
+      category: { select: { name: true } },
+      submittedBy: { select: { name: true, email: true } },
+    },
+  });
 }

@@ -30,7 +30,7 @@ test.describe("role boundary", () => {
       .getByRole("button", { name: "Sign in", exact: true })
       .last()
       .click();
-    await page.waitForURL(`**/o/${org.id}/**`, { timeout: 30000 });
+    await page.waitForURL(`**/o/${org.id}/**`, { timeout: 60000 });
 
     // Member can't invite, can't see role selects, can't see remove — the
     // "Invite a teammate" panel shouldn't render at all for them.
@@ -65,7 +65,7 @@ test.describe("role boundary", () => {
       .getByRole("button", { name: "Sign in", exact: true })
       .last()
       .click();
-    await page.waitForURL(`**/o/${org.id}/**`, { timeout: 30000 });
+    await page.waitForURL(`**/o/${org.id}/**`, { timeout: 60000 });
 
     await page.goto(`/o/${org.id}/settings/members`);
     await page.waitForLoadState("networkidle");

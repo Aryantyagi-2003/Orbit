@@ -98,7 +98,9 @@ export function AuthForm({ callbackUrl }: { callbackUrl?: string }) {
       </div>
 
       <form action={signInWithGoogleAction}>
-        {callbackUrl && <input type="hidden" name="callbackUrl" value={callbackUrl} />}
+        {callbackUrl && (
+          <input type="hidden" name="callbackUrl" value={callbackUrl} />
+        )}
         <GoogleSignInButton />
       </form>
 
@@ -112,7 +114,9 @@ export function AuthForm({ callbackUrl }: { callbackUrl?: string }) {
 
       {mode === "sign-in" ? (
         <form action={signInFormAction} className="space-y-4">
-          {callbackUrl && <input type="hidden" name="callbackUrl" value={callbackUrl} />}
+          {callbackUrl && (
+            <input type="hidden" name="callbackUrl" value={callbackUrl} />
+          )}
           <div>
             <Label htmlFor="signin-email">Email</Label>
             <Input

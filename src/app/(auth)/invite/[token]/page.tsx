@@ -20,8 +20,8 @@ export default async function InvitePage({
           This invite is invalid or has expired
         </h1>
         <p className="text-sm text-muted-foreground">
-          Ask whoever invited you to send a new one from their organization&apos;s
-          Members settings.
+          Ask whoever invited you to send a new one from their
+          organization&apos;s Members settings.
         </p>
         <Button asChild variant="outline" className="w-full">
           <Link href="/login">Back to sign in</Link>
@@ -33,7 +33,9 @@ export default async function InvitePage({
   const session = await auth();
 
   if (!session?.user) {
-    redirect(`/login?callbackUrl=${encodeURIComponent(`/invite/${params.token}`)}`);
+    redirect(
+      `/login?callbackUrl=${encodeURIComponent(`/invite/${params.token}`)}`,
+    );
   }
 
   const roleLabel = invite.role.charAt(0) + invite.role.slice(1).toLowerCase();
@@ -65,7 +67,8 @@ export default async function InvitePage({
           Join {invite.org.name}
         </h1>
         <p className="mt-1.5 text-sm text-muted-foreground">
-          You&apos;ve been invited to join as {roleLabel === "Owner" || roleLabel === "Admin" ? "an" : "a"}{" "}
+          You&apos;ve been invited to join as{" "}
+          {roleLabel === "Owner" || roleLabel === "Admin" ? "an" : "a"}{" "}
           <strong>{roleLabel}</strong>.
         </p>
       </div>

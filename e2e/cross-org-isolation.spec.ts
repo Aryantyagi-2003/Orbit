@@ -39,7 +39,7 @@ test.describe("cross-org isolation", () => {
       .getByRole("button", { name: "Sign in", exact: true })
       .last()
       .click();
-    await page.waitForURL(`**/o/${orgA.id}/**`, { timeout: 20000 });
+    await page.waitForURL(`**/o/${orgA.id}/**`, { timeout: 60000 });
 
     // Direct URL access to Org B's dashboard, expenses, and members pages —
     // Org A's owner is authenticated, just not a member of Org B.

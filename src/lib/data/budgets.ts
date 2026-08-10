@@ -59,6 +59,78 @@ export async function listBudgets(
   }));
 }
 
+export type CategoryBreakdownRow = {
+  categoryId: string;
+  categoryName: string;
+  budgeted: number | null;
+  actual: number;
+  remaining: number | null;
+  percentUsed: number | null;
+};
+
+/**
+ * Every category for the org, budgeted or not, with actual spend for the
+ * given period — the dense "Category | Budgeted | Actual | Remaining | %"
+ * table. Categories with no budget set still show their actual spend
+ * (budgeted/remaining/percentUsed come back null, not zero — zero would
+ * misleadingly read as "a $0 budget", not "no budget was set").
+ */
+export async function getCategoryBreakdown(
+  userId: string,
+  orgId: string,
+  period: string,
+  categoryId?: string,
+): Promise<CategoryBreakdownRow[]> {
+  await requireMembership(userId, orgId);
+
+  const { periodStart, periodEnd } = periodToRange(period);
+
+  const [categories, budgets, actuals] = await Promise.all([
+    prisma.category.findMany({
+      where: { orgId, ...(categoryId ? { id: categoryId } : {}) },
+      orderBy: { name: "asc" },
+    }),
+    prisma.budget.findMany({ where: { orgId, periodStart } }),
+    prisma.expense.groupBy({
+      by: ["categoryId"],
+      where: { orgId, date: { gte: periodStart, lt: periodEnd } },
+      _sum: { amount: true },
+    }),
+  ]);
+
+  const budgetByCategory = new Map(budgets.map((b) => [b.categoryId, b]));
+  const actualByCategory = new Map(
+    actuals.map((a) => [a.categoryId, Number(a._sum.amount ?? 0)]),
+  );
+
+  return categories.map((c) => {
+    const budget = budgetByCategory.get(c.id);
+    const actual = actualByCategory.get(c.id) ?? 0;
+    const budgeted = budget ? Number(budget.amount) : null;
+    return {
+      categoryId: c.id,
+      categoryName: c.name,
+      budgeted,
+      actual,
+      remaining: budgeted !== null ? budgeted - actual : null,
+      percentUsed:
+        budgeted !== null && budgeted > 0
+          ? Math.round((actual / budgeted) * 100)
+          : null,
+    };
+  });
+}
+
+export async function countCategoriesOverBudget(
+  userId: string,
+  orgId: string,
+  period: string,
+): Promise<number> {
+  const rows = await getCategoryBreakdown(userId, orgId, period);
+  return rows.filter((r) => r.percentUsed !== null && r.percentUsed >= 100)
+    .length;
+}
+
 export async function createBudget(
   userId: string,
   orgId: string,

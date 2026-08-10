@@ -3,7 +3,10 @@ import { redirect } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/session";
-import { listUserOrganizations, listPendingInvitesForEmail } from "@/lib/data/orgs";
+import {
+  listUserOrganizations,
+  listPendingInvitesForEmail,
+} from "@/lib/data/orgs";
 import { OnboardingForm } from "./onboarding-form";
 
 export default async function OnboardingPage() {
@@ -35,8 +38,10 @@ export default async function OnboardingPage() {
                 className="flex items-center justify-between gap-3"
               >
                 <p className="text-sm text-muted-foreground">
-                  Join <strong className="text-foreground">{invite.org.name}</strong>{" "}
-                  as {invite.role.charAt(0) + invite.role.slice(1).toLowerCase()}
+                  Join{" "}
+                  <strong className="text-foreground">{invite.org.name}</strong>{" "}
+                  as{" "}
+                  {invite.role.charAt(0) + invite.role.slice(1).toLowerCase()}
                 </p>
                 <Button asChild size="sm">
                   <Link href={`/invite/${invite.token}`}>Accept</Link>
